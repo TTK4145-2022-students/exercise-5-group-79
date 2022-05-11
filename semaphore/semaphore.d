@@ -1,6 +1,6 @@
 
 import std.algorithm, std.concurrency, std.format, std.range, std.stdio, std.traits;
-import core.thread, core.sync.semaphore, core.sync.mutex, core.sync.condition;
+import core.thread, core.sync.semaphore, core.sync.mutex, core.sync.condition,core.atomic;
 
 immutable Duration tick = 33.msecs;
 
@@ -32,12 +32,37 @@ class Resource(T) {
         }
     }
     
-    T allocate(int priority){
+    T allocate(int priority){                                   //Producer
+        mtx.wait();
+        if(busy){
+            mtx.notify();
+            numWaiting[priority]++;
+            sems[priority].wait();
+            numWaiting[priority]--;
+        }
+        busy = true;
+        mtx.notify();
         return value;
+        
     }
     
-    void deallocate(T v){
+    void deallocate(T v){                                       //Consumer
         value = v;
+        mtx.wait();   
+        busy = false;
+        
+        if(numWaiting[1] > 0){
+            sems[1].notify();
+        }
+        else if(numWaiting[0] > 0){
+            sems[0].notify();
+        }
+        else {
+            mtx.notify();
+        }
+        
+        
+        
     }
 }
 
